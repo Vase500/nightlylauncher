@@ -1,6 +1,8 @@
 # 🌙 Nightly Launcher
 
 A modern Minecraft launcher focused on modpacks, mods, instances, and easy Minecraft management.
+This launcher has been made by me using the help of ChatGPT and OpenCode. Nightly Launcher is for now a passion project made by me so for now,
+nothing is confirmed for the future of the launcher, but i will try my best to keep it alive.
 
 > 🚧 **Nightly Launcher is currently in development.** Features and design may change frequently.
 
@@ -30,7 +32,7 @@ A modern Minecraft launcher focused on modpacks, mods, instances, and easy Minec
 Clone the repository:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/nightly-launcher.git
+git clone https://github.com/vase500/nightly-launcher.git
 cd nightly-launcher
 ```
 
@@ -52,25 +54,13 @@ Nightly Launcher is currently in the early development stage.
 
 ### Roadmap
 
-* [x] Initial Electron + React setup
-* [ ] Launcher UI
-* [ ] Splash screen
-* [ ] Minecraft version management
-* [ ] Instance management
-* [ ] Minecraft launching
-* [ ] Java management
-* [ ] Microsoft authentication
-* [ ] Mod loader installation
-* [ ] Modpack importing
-* [ ] Mod management
-* [ ] Settings
+* [x] First release of Nightly Launcher
+* [ ] Updated Launcher UI
 * [ ] Automatic updates
-* [ ] Release builds
+* [ ] Additional generally needed features
+* [ ] Better support for the launcher
 
-## 📜 License
 
-License information will be added before the first public release.
 
----
 
 **Nightly Launcher** — One launcher. All your Minecraft instances. 🌙
