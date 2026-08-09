@@ -556,7 +556,7 @@ select { cursor: pointer; }
 .pack-detail img.pack-icon { width: 96px; height: 96px; border-radius: 14px; }
 .pack-detail .pack-meta { flex: 1; }
 .pack-detail .pack-stats { color: var(--muted); font-size: 12px; margin-top: 6px; line-height: 1.6; }
-.pack-versions { margin-top: 16px; max-height: 220px; overflow-y: auto; }
+.pack-versions { margin-top: 16px; max-height: 40vh; overflow-y: auto; }
 .pack-version {
   display: flex; justify-content: space-between; align-items: center;
   background: var(--bg); border: 1px solid var(--border); border-radius: 9px;

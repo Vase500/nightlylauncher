@@ -1791,7 +1791,7 @@ async function openPackDetail (pack) {
     try {
       const versions = await api.modrinth.versions(pack.id)
       const sorted = versions.slice().sort(sortPackVersions)
-      for (const v of sorted.slice(0, 20)) {
+      for (const v of sorted) {
         versWrap.appendChild(el('div', { class: 'pack-version' }, [
           el('span', { class: 'ver-name', text: v.name }),
           el('span', { class: 'ver-meta', text: (v.game_versions || []).join(', ') + ' \u2022 ' + (v.loaders || []).join(', ') }),
@@ -1826,7 +1826,7 @@ async function openPackDetail (pack) {
     ])))
     try {
       const files = await api.curse.files(pack.id, {})
-      for (const f of files.slice().sort(sortPackVersions).slice(0, 30)) {
+      for (const f of files.slice().sort(sortPackVersions)) {
         filesWrap.appendChild(el('div', { class: 'pack-version' }, [
           el('div', {}, [
             el('div', { class: 'ver-name', text: f.displayName }),
