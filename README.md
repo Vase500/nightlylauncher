@@ -9,12 +9,13 @@ nothing is confirmed for the future of the launcher, but i will try my best to k
 ## ✨ Features
 
 * 🎮 Minecraft instance management
-* 📦 Modpack support
+* 📦 Modpack support (Modrinth, CurseForge, and Prism-style imports)
 * 🧩 Mod management
 * 🛠️ Fabric, Forge, NeoForge, and Quilt support
-* ☕ Java management
-* 💾 Custom RAM allocation
-* 👤 Minecraft account management
+* ☕ Java management (auto-downloads Adoptium, Oracle, or Mojang runtimes)
+* 💾 Custom RAM allocation and JVM arguments
+* 👤 Minecraft account management (Microsoft + offline, with 3D skin preview)
+* ⏱️ Playtime tracking
 * 🎨 Modern and customizable interface
 * ⬇️ Automatic Minecraft and modpack downloads
 * 🚀 Fast and simple launching
@@ -22,7 +23,19 @@ nothing is confirmed for the future of the launcher, but i will try my best to k
 ## 🛠️ Built With
 
 * Electron
-* JavaScript
+* Vanilla JavaScript, HTML, and CSS
+* Node.js
+* skinview3d
+
+## 💾 Installation
+
+Grab the latest build from the **Releases** page:
+
+* **Windows** — `Nightly Launcher Setup .exe`
+* **Linux** — AppImage (portable), `.deb`, or `.rpm`
+* **Arch Linux** — build from the included `PKGBUILD` with `makepkg`
+
+The launcher downloads Java automatically when you first launch a game, so no separate Java install is required.
 
 ## 🚀 Development
 
@@ -45,20 +58,35 @@ Start the development environment:
 npm run dev
 ```
 
+### Building
+
+Windows installer:
+
+```bash
+npm run dist
+```
+
+Linux (AppImage / deb / rpm — build on a Linux machine):
+
+```bash
+npx electron-builder --linux AppImage deb rpm
+```
+
 ## 📁 Project Status
 
 Nightly Launcher is currently in the early development stage.
 
 ### Roadmap
 
-* [ ] Linux Support (.deb, .rpm, .appimage)
+* [x] Linux Support (.deb, .rpm, .appimage)
 * [x] First release of Nightly Launcher
 * [ ] Updated Launcher UI
 * [ ] Automatic updates
 * [ ] Additional generally needed features
 * [ ] Better support for the launcher
 
+## 📄 License
 
-
+Nightly Launcher is released under the [MIT License](LICENSE).
 
 **Nightly Launcher** — One launcher. All your Minecraft instances. 🌙
