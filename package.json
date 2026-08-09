@@ -3,8 +3,10 @@
   "version": "1.0.0",
   "description": "A modern Electron-based Minecraft launcher",
   "main": "main.js",
-  "author": "Vase 500",
+  "author": "Vase 500 <vase500@users.noreply.github.com>",
+  "homepage": "https://github.com/Vase500/nightlylauncher",
   "license": "MIT",
+  "desktopName": "nightly-launcher",
   "scripts": {
     "start": "electron .",
     "dev": "electron .",
@@ -45,7 +47,7 @@
       ],
       "icon": "icon2.png",
       "category": "Game",
-      "desktopName": "nightly-launcher.desktop",
+      "maintainer": "Vase 500 <vase500@users.noreply.github.com>",
       "syncDesktopName": true
     },
     "nsis": {
