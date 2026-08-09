@@ -1,0 +1,70 @@
+{
+  "name": "nightly-launcher",
+  "version": "1.0.0",
+  "description": "A modern Electron-based Minecraft launcher",
+  "main": "main.js",
+  "author": "Vase 500",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "logo": "node scripts/generate-logo.js",
+    "dist": "electron-builder --win",
+    "dist:linux": "electron-builder --linux"
+  },
+  "build": {
+    "appId": "com.nightly.launcher",
+    "productName": "Nightly Launcher",
+    "copyright": "Copyright © 2026 Vase 500",
+    "asar": true,
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer.js",
+      "index.html",
+      "styles.css",
+      "splash.html",
+      "logo.png",
+      "splash.png",
+      "icon.png",
+      "core/**",
+      "node_modules/skinview3d/**"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "icon2.png"
+    },
+    "linux": {
+      "target": [
+        "dir"
+      ],
+      "icon": "icon2.png",
+      "category": "Game",
+      "desktopName": "nightly-launcher.desktop",
+      "syncDesktopName": true
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Nightly Launcher"
+    }
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^26.15.3"
+  },
+  "allowScripts": {
+    "electron@33.4.11": true
+  },
+  "dependencies": {
+    "skinview3d": "^3.4.2"
+  }
+}

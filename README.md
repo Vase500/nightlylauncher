@@ -1,67 +1,45 @@
-# 🌙 Nightly Launcher
+# Nightly Launcher
 
-A modern Minecraft launcher focused on modpacks, mods, instances, and easy Minecraft management.
-This launcher has been made by me using the help of ChatGPT and OpenCode. Nightly Launcher is for now a passion project made by me so for now,
-nothing is confirmed for the future of the launcher, but i will try my best to keep it alive.
+A modern Electron-based Minecraft launcher with modpack support.
 
-> 🚧 **Nightly Launcher is currently in development.** Features and design may change frequently.
+## Features
 
-## ✨ Features
+- Vanilla, Fabric, Quilt, NeoForge and Forge instance support
+- Modrinth, CurseForge and Prism-style modpack importing
+- Microsoft / offline accounts with 3D skin preview
+- Auto-downloads Java (Adoptium, Oracle, Mojang runtimes)
+- Playtime tracking, custom RAM and JVM args, custom icons
+- Frameless, transparent, glow-outlined window (Windows 11-style controls)
 
-* 🎮 Minecraft instance management
-* 📦 Modpack support
-* 🧩 Mod management
-* 🛠️ Fabric, Forge, NeoForge, and Quilt support
-* ☕ Java management
-* 💾 Custom RAM allocation
-* 👤 Minecraft account management
-* 🎨 Modern and customizable interface
-* ⬇️ Automatic Minecraft and modpack downloads
-* 🚀 Fast and simple launching
-
-## 🛠️ Built With
-
-* Electron
-* React
-* TypeScript
-* Vite
-* Node.js
-
-## 🚀 Development
-
-Clone the repository:
-
-```bash
-git clone https://github.com/vase500/nightly-launcher.git
-cd nightly-launcher
-```
-
-Install dependencies:
+## Running
 
 ```bash
 npm install
+npm start
 ```
 
-Start the development environment:
+## Building
+
+Windows installer:
 
 ```bash
-npm run dev
+npm run dist
 ```
 
-## 📁 Project Status
+Linux (AppImage / deb / rpm) — build on a Linux machine:
 
-Nightly Launcher is currently in the early development stage.
+```bash
+npm run dist:linux
+npx electron-builder --linux AppImage deb rpm
+```
 
-### Roadmap
+Arch Linux: use the included `PKGBUILD` with `makepkg`.
 
-* [ ] Linux Support (.deb, .rpm, .appimage)
-* [x] First release of Nightly Launcher
-* [ ] Updated Launcher UI
-* [ ] Automatic updates
-* [ ] Additional generally needed features
-* [ ] Better support for the launcher
+## Requirements
 
+- Node.js 18+ and npm
+- Java is downloaded automatically by the launcher when needed
 
+## License
 
-
-**Nightly Launcher** — One launcher. All your Minecraft instances. 🌙
+MIT

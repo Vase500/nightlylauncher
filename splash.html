@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
+  <title>Nightly Launcher</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; }
+    body {
+      background: transparent; overflow: hidden;
+      -webkit-app-region: drag; user-select: none;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .splash {
+      position: absolute; inset: 14px; border-radius: 16px;
+      box-shadow:
+        0 0 6px rgba(224, 200, 255, .45),
+        0 0 14px rgba(180, 145, 255, .2);
+      background:
+        radial-gradient(600px 300px at 80% 0%, rgba(139, 92, 246, .35), transparent 60%),
+        radial-gradient(400px 300px at 10% 100%, rgba(217, 70, 239, .22), transparent 60%),
+        linear-gradient(160deg, #17113a, #0d0b1a);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 26px;
+      overflow: hidden;
+    }
+    .splash img {
+      width: 150px; height: 150px; border-radius: 30px;
+      animation: breathe 1.8s ease-in-out infinite;
+      box-shadow: 0 0 60px rgba(139, 92, 246, .55), 0 18px 40px rgba(0, 0, 0, .5);
+    }
+    .wordmark { text-align: center; }
+    .wordmark h1 {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 30px; letter-spacing: 10px; font-weight: 700; color: #fff;
+      background: linear-gradient(135deg, #a78bfa, #e879f9);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .wordmark span {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 11px; letter-spacing: 8px; color: #a29bc7; display: block; margin-top: 6px;
+    }
+    .bar {
+      width: 150px; height: 5px; border-radius: 3px;
+      background: rgba(255, 255, 255, .1); overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%; width: 40%; border-radius: 3px;
+      background: linear-gradient(90deg, #8b5cf6, #d946ef);
+      animation: load 1.2s ease-in-out infinite;
+    }
+    @keyframes breathe {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.06); }
+    }
+    @keyframes load {
+      0% { margin-left: -40%; }
+      100% { margin-left: 110%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="splash">
+    <img src="splash.png" alt="Nightly Launcher">
+    <div class="wordmark">
+      <h1>NIGHTLY</h1>
+      <span>LAUNCHER</span>
+    </div>
+    <div class="bar"><div class="bar-fill"></div></div>
+  </div>
+</body>
+</html>
