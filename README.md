@@ -22,10 +22,7 @@ nothing is confirmed for the future of the launcher, but i will try my best to k
 ## 🛠️ Built With
 
 * Electron
-* React
-* TypeScript
-* Vite
-* Node.js
+* JavaScript
 
 ## 🚀 Development
 
