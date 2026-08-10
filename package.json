@@ -43,7 +43,10 @@
     },
     "linux": {
       "target": [
-        "dir"
+        "AppImage",
+        "deb",
+        "rpm",
+        "pacman"
       ],
       "icon": "icon2.png",
       "category": "Game",

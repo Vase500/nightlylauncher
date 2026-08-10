@@ -309,11 +309,15 @@ async function installAssets (tree, onProgress, signal) {
       const dest = path.join(paths.assetsObjects(), obj.hash.slice(0, 2), obj.hash)
       if (util.exists(dest)) {
         try {
-          if (fs.statSync(dest).size === obj.size) { done++; continue }
+          if (await util.sha1File(dest) === obj.hash) { done++; continue }
         } catch {}
       }
       try {
         await util.download(ASSETS_BASE + obj.hash.slice(0, 2) + '/' + obj.hash, dest, { onProgress, signal })
+        if (await util.sha1File(dest) !== obj.hash) {
+          fs.rmSync(dest, { force: true })
+          if (onProgress) onProgress({ phase: 'warn', message: 'Asset checksum mismatch: ' + key })
+        }
       } catch (e) {
         if (e.cancelled) throw e
       }

@@ -69,6 +69,7 @@ function requiredJavaMajor (mc) {
     if (minor === 20) return parseInt(m[2] || 0, 10) >= 5 ? 21 : 17
     return 21
   }
+  if (/^(\d+)\.(\d+)/.test(v) && parseInt(v.match(/^(\d+)/)[1], 10) >= 2) return 21
   if (/^\d+w\d+[a-z]/.test(v)) return 17
   return 8
 }
@@ -1434,14 +1435,21 @@ async function openModsModal (inst) {
       mc: (h.versions || []).slice(-1)[0] || h.mc || '',
       description: h.description || h.summary || ''
     }))),
-    (r) => api.mods.modrinthVersions(inst.id, r.id).then(vs => (vs || []).map(v => {
-      const f = (v.files || []).find(x => x.primary) || (v.files || [])[0] || {}
-      return Object.assign({}, v, {
-        fileName: f.filename || '',
-        fileLength: f.size || v.downloads,
-        install: (jobId) => api.mods.installModrinth(inst.id, r.id, v.id, { name: r.name, slug: r.slug, icon: r.icon }, jobId)
+    (r) => api.mods.modrinthVersions(inst.id, r.id).then(vs => {
+      let list = vs || []
+      if (inst.mcVersion) {
+        const exact = list.filter(v => (v.game_versions || []).includes(inst.mcVersion))
+        if (exact.length) list = exact
+      }
+      return list.map(v => {
+        const f = (v.files || []).find(x => x.primary) || (v.files || [])[0] || {}
+        return Object.assign({}, v, {
+          fileName: f.filename || '',
+          fileLength: f.size || v.downloads,
+          install: (jobId) => api.mods.installModrinth(inst.id, r.id, v.id, { name: r.name, slug: r.slug, icon: r.icon }, jobId)
+        })
       })
-    }))
+    })
   )
   cursePanel = searchPanel('CurseForge',
     (q, page) => api.mods.searchCurse(q, page).then(hits => (hits || []).map(h => ({
@@ -1454,7 +1462,14 @@ async function openModsModal (inst) {
       mc: h.mc || '',
       description: h.summary || h.description || ''
     }))),
-    (r) => api.mods.curseFiles(inst.id, r.id).then(vs => (vs || []).map(v => Object.assign({}, v, { install: (jobId) => api.mods.installCurse(inst.id, r.id, v.id, { name: r.name, slug: r.slug, icon: r.icon }, jobId) })))
+    (r) => api.mods.curseFiles(inst.id, r.id).then(vs => {
+      let list = vs || []
+      if (inst.mcVersion) {
+        const exact = list.filter(v => (v.gameVersions || []).includes(inst.mcVersion))
+        if (exact.length) list = exact
+      }
+      return list.map(v => Object.assign({}, v, { install: (jobId) => api.mods.installCurse(inst.id, r.id, v.id, { name: r.name, slug: r.slug, icon: r.icon }, jobId) }))
+    })
   )
   customPanel = el('div', {}, [
     el('div', { class: 'hint', text: 'Install a mod from a .jar file on your computer.' }),
@@ -1592,6 +1607,7 @@ function renderBrowse () {
     searchPacks()
   } else {
     renderPacks()
+    renderPager(false)
   }
 }
 
@@ -1616,7 +1632,7 @@ function renderPacks () {
       ]),
       el('div', { class: 'card-desc', text: pack.description || pack.summary || '' }),
       el('div', { class: 'badges' }, [
-        el('span', { class: 'badge green', text: 'dl: ' + fmtBytes(pack.downloads || 0) }),
+        el('span', { class: 'badge green', text: 'dl: ' + fmtDownloads(pack.downloads || 0) }),
         pack.updated && el('span', { class: 'badge', text: 'upd: ' + new Date(pack.updated).toLocaleDateString() })
       ]),
       el('div', { class: 'card-actions' }, [
@@ -1627,22 +1643,39 @@ function renderPacks () {
 }
 
 async function searchPacks (page) {
-  if (page !== undefined) state.browse.page = page
+  const target = page !== undefined ? page : state.browse.page
   const grid = document.getElementById('pack-grid')
-  grid.innerHTML = el('div', { class: 'empty-state', text: 'Searching...' }).outerHTML
+  if (target === 0) {
+    state.browse.results = []
+    grid.innerHTML = el('div', { class: 'empty-state', text: 'Searching...' }).outerHTML
+  }
   try {
     let results
     if (state.browse.tab === 'modrinth') {
-      results = await api.modrinth.search(state.browse.query, state.browse.page)
+      results = await api.modrinth.search(state.browse.query, target)
     } else {
-      results = await api.curse.search(state.browse.query, state.browse.page)
+      results = await api.curse.search(state.browse.query, target)
     }
-    state.browse.results = results
+    state.browse.page = target
+    state.browse.results = state.browse.results.concat(results)
     renderPacks()
+    renderPager(results.length >= 20)
   } catch (e) {
     toast(e.message, 'error')
-    state.browse.results = []
-    renderPacks()
+    if (target === 0) {
+      state.browse.results = []
+      renderPacks()
+    }
+    renderPager(false)
+  }
+}
+
+function renderPager (hasMore) {
+  const pager = document.getElementById('pack-pager')
+  if (!pager) return
+  pager.innerHTML = ''
+  if (hasMore) {
+    pager.appendChild(el('button', { class: 'btn', text: 'Load more', onclick: () => searchPacks(state.browse.page + 1) }))
   }
 }
 
@@ -1713,14 +1746,23 @@ function latestMcVersion (versions) {
   return list[0] || ''
 }
 
+function mcVersionParts (s) {
+  const m = String(s).trim().match(/^(\d+)(?:\.(\d+))?(?:\.(\d+))?$/)
+  if (!m) return null
+  return [parseInt(m[1], 10), parseInt(m[2] || 0, 10), parseInt(m[3] || 0, 10)]
+}
+
 function cmpMcVersion (x, y) {
-  const rx = String(x).match(/^1\.(\d+)(?:\.(\d+))?$/)
-  const ry = String(y).match(/^1\.(\d+)(?:\.(\d+))?$/)
-  if (rx && ry) {
-    return (parseInt(ry[1], 10) - parseInt(rx[1], 10)) || (parseInt(ry[2] || 0, 10) - parseInt(rx[2] || 0, 10))
+  const ax = mcVersionParts(x)
+  const ay = mcVersionParts(y)
+  if (ax && ay) {
+    for (let i = 0; i < 3; i++) {
+      if (ax[i] !== ay[i]) return ay[i] - ax[i]
+    }
+    return 0
   }
-  if (rx) return -1
-  if (ry) return 1
+  if (ax) return -1
+  if (ay) return 1
   return String(y) < String(x) ? -1 : 1
 }
 
@@ -1791,6 +1833,7 @@ async function openPackDetail (pack) {
     try {
       const versions = await api.modrinth.versions(pack.id)
       const sorted = versions.slice().sort(sortPackVersions)
+      if (!sorted.length) versWrap.appendChild(el('div', { class: 'card-sub', text: 'No versions available.' }))
       for (const v of sorted) {
         versWrap.appendChild(el('div', { class: 'pack-version' }, [
           el('span', { class: 'ver-name', text: v.name }),
@@ -1825,8 +1868,10 @@ async function openPackDetail (pack) {
       ])
     ])))
     try {
-      const files = await api.curse.files(pack.id, {})
-      for (const f of files.slice().sort(sortPackVersions)) {
+      const files = await api.curse.files(pack.id, { maxPages: 10 })
+      const sortedFiles = files.slice().sort(sortPackVersions)
+      if (!sortedFiles.length) filesWrap.appendChild(el('div', { class: 'card-sub', text: 'No files available.' }))
+      for (const f of sortedFiles) {
         filesWrap.appendChild(el('div', { class: 'pack-version' }, [
           el('div', {}, [
             el('div', { class: 'ver-name', text: f.displayName }),

@@ -1,0 +1,29 @@
+Folder is fully prepared. The LinuxBuild folder now contains: full source, package.json (with Linux desktop integration + all build targets), build-ubuntu.sh, build-arch.sh, and PKGBUILD.
+
+Ubuntu 26.04 desktop — from a totally fresh VM:
+
+Transfer the folder into the VM (shared folder, USB, or scp).
+Then run just two commands:
+cd LinuxBuild-NightlyLauncher
+bash build-ubuntu.sh
+That script does everything automatically:
+
+apt installs build tools (rpm, fakeroot, dpkg-dev, curl, fuse for running AppImages)
+Installs Node.js 22 LTS (via NodeSource) since the VM has nothing
+npm install
+Builds AppImage + deb + rpm into dist/
+If you prefer step-by-step instead:
+
+sudo apt update
+sudo apt install -y curl rpm fakeroot dpkg-dev
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y nodejs
+cd LinuxBuild-NightlyLauncher
+npm install --no-audit --no-fund
+npx electron-builder --linux AppImage deb rpm
+Resulting files in dist/:
+
+Nightly Launcher-1.0.0.AppImage — portable, run with ./dist/Nightly\ Launcher-1.0.0.AppImage --appimage-extract-and-run (the flag avoids fuse issues)
+Nightly Launcher-1.0.0.deb — sudo apt install ./dist/...deb
+Nightly Launcher-1.0.0.rpm — for Fedora/RHEL
+For Arch later: bash build-arch.sh (creates the tarball, builds with makepkg).

@@ -127,13 +127,34 @@ function applyRule (list, features) {
   return out
 }
 
+function splitArgs (str) {
+  const out = []
+  let cur = ''
+  let quote = null
+  for (let i = 0; i < String(str).length; i++) {
+    const c = String(str)[i]
+    if (quote) {
+      if (c === quote) quote = null
+      else cur += c
+    } else if (c === '"' || c === "'") {
+      quote = c
+    } else if (c === ' ' || c === '\t') {
+      if (cur) { out.push(cur); cur = '' }
+    } else {
+      cur += c
+    }
+  }
+  if (cur) out.push(cur)
+  return out
+}
+
 function buildArgs (tree, tokens, opts, cfg, nativesDir, javaMajor) {
   const versionJson = tree[tree.length - 1]
   const args = []
 
   if (opts.fullscreen) args.push('-Dorg.lwjgl.opengl.Window.fullscreen=true')
 
-  const userJvm = (opts.jvmArgs || '').trim().split(/\s+/).filter(Boolean)
+  const userJvm = splitArgs(opts.jvmArgs || '')
   const jvm = [
     `-Xmx${opts.maxMemory}M`,
     `-Xms${opts.minMemory}M`
