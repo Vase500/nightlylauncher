@@ -20,7 +20,10 @@ const DEFAULTS = {
   onboarded: false,
   autoDownloadJava: true,
   warnInsufficientMemory: true,
-  trackPlaytime: true
+  trackPlaytime: true,
+  useGamemode: false,
+  useMangohud: false,
+  useDiscreteGpu: false
 }
 
 let cache = null

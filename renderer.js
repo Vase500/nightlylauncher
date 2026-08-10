@@ -57,6 +57,16 @@ function fmtPlaytime (ms) {
   return m ? h + ' h ' + m + ' min' : h + ' h'
 }
 
+function modDisplayName (m) {
+  if (m.meta && m.meta.name) return m.meta.name
+  const stem = String(m.filename || '')
+    .replace(/\.jar$/i, '')
+    .replace(/[-_.](mc|forge|fabric|fapi|quilt|neoforge|1\.\d+(?:\.\d+)?)[\w.-]*$/i, '')
+    .replace(/[-_]+/g, ' ')
+    .trim()
+  return stem || m.filename || ''
+}
+
 function requiredJavaMajor (mc) {
   const v = String(mc || '').trim()
   const m = v.match(/^1\.(\d+)(?:\.(\d+))?/)
@@ -1170,14 +1180,23 @@ async function openModsModal (inst) {
     }
     for (const m of mods) {
       installedWrap.appendChild(el('div', { class: 'mod-row' }, [
-        el('div', { class: 'mod-inst-icon-wrap' }, [
-          m.meta && m.meta.icon
-            ? el('img', { class: 'mod-inst-icon', src: m.meta.icon, alt: '', onerror: e => { e.target.style.display = 'none' } })
-            : el('div', { class: 'mod-inst-icon placeholder' })
-        ]),
+        (m.meta && m.meta.icon)
+          ? el('div', { class: 'mod-inst-icon-wrap' }, [
+              el('img', { class: 'mod-inst-icon', src: m.meta.icon, alt: '',
+                onerror: e => { const w = e.target.closest('.mod-inst-icon-wrap'); if (w) w.style.display = 'none' } })
+            ])
+          : null,
         el('div', { class: 'mod-info' }, [
-          el('div', { class: 'mod-name', text: (m.meta && m.meta.name) ? m.meta.name : m.filename }),
-          el('div', { class: 'mod-meta', text: (m.meta && m.meta.slug ? m.meta.slug + ' \u00B7 ' : m.filename + ' \u00B7 ') + fmtBytes(m.size) + ' \u00B7 ' + fmtDate(m.mtime) })
+          el('div', { class: 'mod-name', text: modDisplayName(m) }),
+          el('div', { class: 'mod-meta', text: (function () {
+            const bits = []
+            if (m.meta && m.meta.id) bits.push(m.meta.id)
+            else if (m.meta && m.meta.slug) bits.push(m.meta.slug)
+            else bits.push(m.filename)
+            if (m.meta && m.meta.version) bits.push('v' + m.meta.version)
+            bits.push(fmtBytes(m.size), fmtDate(m.mtime))
+            return bits.join(' \u00B7 ')
+          })() })
         ]),
         el('button', { class: 'btn danger small', text: 'Remove', onclick: async () => {
           try {
@@ -1995,6 +2014,10 @@ async function renderSettings () {
   const autoDlJava = el('input', { type: 'checkbox', checked: state.config.autoDownloadJava !== false })
   const warnMem = el('input', { type: 'checkbox', checked: state.config.warnInsufficientMemory !== false })
   const trackTime = el('input', { type: 'checkbox', checked: state.config.trackPlaytime !== false })
+  const isLinux = window.nightly.platform === 'linux'
+  let gm = null
+  let mh = null
+  let dg = null
   function updatePathHint () {
     if (javaSel.value) {
       pathHint.textContent = javaSel.value
@@ -2043,6 +2066,26 @@ async function renderSettings () {
     el('div', { class: 'setting-row' }, [el('label', { text: 'Resolution width (px)' }), width]),
     el('div', { class: 'setting-row' }, [el('label', { text: 'Resolution height (px)' }), height])
   ]))
+  if (isLinux) {
+    let tools = { gamemode: false, mangohud: false }
+    try { tools = await api.native.detect() } catch {}
+    gm = el('input', { type: 'checkbox', checked: !!state.config.useGamemode, disabled: !tools.gamemode })
+    mh = el('input', { type: 'checkbox', checked: !!state.config.useMangohud, disabled: !tools.mangohud })
+    dg = el('input', { type: 'checkbox', checked: !!state.config.useDiscreteGpu })
+    form.appendChild(el('div', { class: 'setting-card' }, [
+      el('h3', { text: 'Game Performance (Linux)' }),
+      el('div', { class: 'setting-row inline' }, [gm, el('label', { text: 'Use Feral GameMode (gamemoderun)' })]),
+      el('div', { class: 'hint', text: tools.gamemode
+        ? 'Feral GameMode is installed.'
+        : 'Feral GameMode is not installed (sudo apt install gamemode)' }),
+      el('div', { class: 'setting-row inline' }, [mh, el('label', { text: 'Use MangoHud (mangohud)' })]),
+      el('div', { class: 'hint', text: tools.mangohud
+        ? 'MangoHud is installed.'
+        : 'MangoHud is not installed (sudo apt install mangohud)' }),
+      el('div', { class: 'setting-row inline' }, [dg, el('label', { text: 'Use discrete GPU (force dedicated graphics over the iGPU)' })]),
+      el('div', { class: 'hint', text: 'Sets DRI_PRIME / NVIDIA PRIME offload so Java renders on your dedicated GPU.' })
+    ]))
+  }
   form.appendChild(el('div', { class: 'setting-card' }, [
     el('h3', { text: 'Launcher Behavior' }),
     el('div', { class: 'setting-row inline' }, [warnMem, el('label', { text: 'Warn when an instance uses less RAM than the global default' })]),
@@ -2070,6 +2113,11 @@ async function renderSettings () {
       warnInsufficientMemory: warnMem.checked,
       trackPlaytime: trackTime.checked,
       theme: themeSel.value
+    }
+    if (isLinux) {
+      patch.useGamemode = gm.checked
+      patch.useMangohud = mh.checked
+      patch.useDiscreteGpu = dg.checked
     }
     await api.config.set(patch)
     state.config = await api.config.get()

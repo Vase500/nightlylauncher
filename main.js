@@ -17,6 +17,7 @@ const accounts = require('./core/accounts')
 const auth = require('./core/auth')
 const skins = require('./core/skins')
 const util = require('./core/util')
+const native = require('./core/native')
 
 app.setName('Nightly Launcher')
 app.setAppUserModelId('com.nightly.launcher')
@@ -144,6 +145,8 @@ ipcMain.handle('install:cancel', (e, jobId) => {
 ipcMain.handle('config:get', () => config.load())
 ipcMain.handle('config:set', (e, patch) => config.save(patch))
 
+ipcMain.handle('native:detect', () => native.detect())
+
 ipcMain.handle('versions:list', (e, filters) => mojang.listVersions(filters))
 ipcMain.handle('loaders:list', (e, loader, mc) => loaders.listLoaderVersions(loader, mc))
 ipcMain.handle('loaders:supported', (e, loader) => loaders.supportedMinecraftVersions(loader))
@@ -224,13 +227,34 @@ ipcMain.handle('mods:resolveIcons', async (e, instanceId) => {
   const modsList = mods.list(instanceId)
   const meta = mods.readMeta(instanceId)
   const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+
+  // 0) read metadata + icon straight out of each jar (offline, reliable).
+  //    Existing metadata (Modrinth/CurseForge installs) wins for name/slug/
+  //    icon; the jar fills in whatever is missing (id, version, icon).
+  let changed = false
+  {
+    const dir = mods.modsDir(instanceId)
+    for (const m of modsList) {
+      const existing = meta[m.filename]
+      if (existing && existing.source === 'jar' && existing.mtime === m.mtime) continue
+      try {
+        const jm = mods.readJarMeta(path.join(dir, m.filename))
+        if (!jm) continue
+        const merged = Object.assign({}, jm, existing || {})
+        merged.mtime = m.mtime
+        merged.source = 'jar'
+        meta[m.filename] = merged
+        changed = true
+      } catch {}
+    }
+  }
+
   const pending = modsList.filter(m => {
     if (meta[m.filename] && meta[m.filename].icon) return false
     if (resolveSkipped.has(instanceId + '\u0000' + m.filename)) return false
     return true
   })
   const newMeta = {}
-  let changed = false
 
   // 1) one bulk lookup per 50 candidate slugs instead of one search per mod
   const wanted = new Map()
@@ -297,7 +321,7 @@ ipcMain.handle('mods:resolveIcons', async (e, instanceId) => {
       const fn = files[i2++]
       const entry = newMeta[fn]
       entry.icon = await iconDataUrl(entry.icon)
-      meta[fn] = entry
+      meta[fn] = Object.assign({}, meta[fn], entry)
       changed = true
     }
   }

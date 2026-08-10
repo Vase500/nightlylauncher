@@ -2,6 +2,10 @@
 const { contextBridge, ipcRenderer } = require('electron')
 
 const api = {
+  platform: process.platform,
+  native: {
+    detect: () => ipcRenderer.invoke('native:detect')
+  },
   config: {
     get: () => ipcRenderer.invoke('config:get'),
     set: (patch) => ipcRenderer.invoke('config:set', patch)
