@@ -16,11 +16,16 @@ const DEFAULTS = {
   downloadsLocation: paths.downloads(),
   curseforgeApiKey: '',
   filters: { releases: true, snapshots: false, betas: false, alphas: false, experiments: false },
-  theme: 'midnight',
+  theme: 'system',
+  accent: '',
   onboarded: false,
   autoDownloadJava: true,
   warnInsufficientMemory: true,
-  trackPlaytime: true
+  trackPlaytime: true,
+  checkForUpdates: true,
+  updateIgnoredVersion: '',
+  lastUpdateCheck: 0,
+  lastUpdateVersion: ''
 }
 
 let cache = null

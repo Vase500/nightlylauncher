@@ -89,16 +89,13 @@ body {
 }
 
 #app {
-  position: fixed; inset: 14px;
+  position: fixed; inset: 0;
   display: flex; flex-direction: column;
   border-radius: 16px;
   background: var(--bg);
-  box-shadow:
-    0 0 6px rgba(224, 200, 255, .45),
-    0 0 14px rgba(180, 145, 255, .2);
   overflow: hidden;
 }
-body.maximized #app { inset: 0; border-radius: 0; box-shadow: none; }
+body.maximized #app { border-radius: 0; }
 
 /* ================= Top bar ================= */
 
@@ -556,7 +553,7 @@ select { cursor: pointer; }
 .pack-detail img.pack-icon { width: 96px; height: 96px; border-radius: 14px; }
 .pack-detail .pack-meta { flex: 1; }
 .pack-detail .pack-stats { color: var(--muted); font-size: 12px; margin-top: 6px; line-height: 1.6; }
-.pack-versions { margin-top: 16px; max-height: 220px; overflow-y: auto; }
+.pack-versions { margin-top: 16px; max-height: 40vh; overflow-y: auto; }
 .pack-version {
   display: flex; justify-content: space-between; align-items: center;
   background: var(--bg); border: 1px solid var(--border); border-radius: 9px;

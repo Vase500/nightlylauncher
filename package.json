@@ -5,6 +5,8 @@
   "main": "main.js",
   "author": "Vase 500",
   "license": "MIT",
+  "homepage": "https://github.com/Vase500/nightlylauncher",
+  "desktopName": "nightly-launcher",
   "scripts": {
     "start": "electron .",
     "dev": "electron .",
@@ -41,11 +43,14 @@
     },
     "linux": {
       "target": [
-        "dir"
+        "AppImage",
+        "deb",
+        "rpm",
+        "pacman"
       ],
       "icon": "icon2.png",
       "category": "Game",
-      "desktopName": "nightly-launcher.desktop",
+      "maintainer": "Vase 500 <vase500@users.noreply.github.com>",
       "syncDesktopName": true
     },
     "nsis": {

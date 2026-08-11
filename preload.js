@@ -2,6 +2,17 @@
 const { contextBridge, ipcRenderer } = require('electron')
 
 const api = {
+  appInfo: {
+    version: () => ipcRenderer.invoke('app:version')
+  },
+  updates: {
+    check: (force) => ipcRenderer.invoke('updates:check', force),
+    download: () => ipcRenderer.invoke('updates:download'),
+    ignore: (version) => ipcRenderer.invoke('updates:ignore', version),
+    setEnabled: (enabled) => ipcRenderer.invoke('updates:setEnabled', enabled),
+    openReleases: () => ipcRenderer.invoke('updates:openReleases'),
+    onProgress: (cb) => ipcRenderer.on('update:progress', (e, p) => cb(p))
+  },
   config: {
     get: () => ipcRenderer.invoke('config:get'),
     set: (patch) => ipcRenderer.invoke('config:set', patch)

@@ -25,7 +25,10 @@ function classpathFor (libs, gameJar) {
 }
 
 function parseUuid (username) {
-  const h = crypto.createHash('md5').update(username).digest('hex')
+  const b = crypto.createHash('md5').update('OfflinePlayer:' + username).digest()
+  b[6] = (b[6] & 0x0f) | 0x30
+  b[8] = (b[8] & 0x3f) | 0x80
+  const h = b.toString('hex')
   return h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20, 32)
 }
 
@@ -127,13 +130,34 @@ function applyRule (list, features) {
   return out
 }
 
+function splitArgs (str) {
+  const out = []
+  let cur = ''
+  let quote = null
+  for (let i = 0; i < String(str).length; i++) {
+    const c = String(str)[i]
+    if (quote) {
+      if (c === quote) quote = null
+      else cur += c
+    } else if (c === '"' || c === "'") {
+      quote = c
+    } else if (c === ' ' || c === '\t') {
+      if (cur) { out.push(cur); cur = '' }
+    } else {
+      cur += c
+    }
+  }
+  if (cur) out.push(cur)
+  return out
+}
+
 function buildArgs (tree, tokens, opts, cfg, nativesDir, javaMajor) {
   const versionJson = tree[tree.length - 1]
   const args = []
 
   if (opts.fullscreen) args.push('-Dorg.lwjgl.opengl.Window.fullscreen=true')
 
-  const userJvm = (opts.jvmArgs || '').trim().split(/\s+/).filter(Boolean)
+  const userJvm = splitArgs(opts.jvmArgs || '')
   const jvm = [
     `-Xmx${opts.maxMemory}M`,
     `-Xms${opts.minMemory}M`
@@ -267,6 +291,8 @@ async function launch (instance, { onProgress, onLog, onExit } = {}) {
   const args = buildArgs(tree, tokens, opts, config.load(), nativesDir, java.getJavaVersion(javaPath))
 
   util.ensureDirSync(opts.gameDir)
+
+  const cfg = config.load()
 
   if (onLog) {
     onLog('Nightly Launcher', `Launching ${instance.name}`)

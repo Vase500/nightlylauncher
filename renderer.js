@@ -57,6 +57,16 @@ function fmtPlaytime (ms) {
   return m ? h + ' h ' + m + ' min' : h + ' h'
 }
 
+function modDisplayName (m) {
+  if (m.meta && m.meta.name) return m.meta.name
+  const stem = String(m.filename || '')
+    .replace(/\.jar$/i, '')
+    .replace(/[-_.](mc|forge|fabric|fapi|quilt|neoforge|1\.\d+(?:\.\d+)?)[\w.-]*$/i, '')
+    .replace(/[-_]+/g, ' ')
+    .trim()
+  return stem || m.filename || ''
+}
+
 function requiredJavaMajor (mc) {
   const v = String(mc || '').trim()
   const m = v.match(/^1\.(\d+)(?:\.(\d+))?/)
@@ -69,6 +79,7 @@ function requiredJavaMajor (mc) {
     if (minor === 20) return parseInt(m[2] || 0, 10) >= 5 ? 21 : 17
     return 21
   }
+  if (/^(\d+)\.(\d+)/.test(v) && parseInt(v.match(/^(\d+)/)[1], 10) >= 2) return 21
   if (/^\d+w\d+[a-z]/.test(v)) return 17
   return 8
 }
@@ -472,7 +483,6 @@ function hideProgress () {
   document.getElementById('progress-root').innerHTML = ''
 }
 
-let activeProgressTitle = ''
 api.onImportProgress(p => {
   if (!p) return
   if (p.phase === 'loader') { setProgress(0, p.message) }
@@ -484,11 +494,104 @@ api.onImportProgress(p => {
   else if (p.phase === 'warn') { console.warn(p.message) }
 })
 
+/* ---------- updates ---------- */
+
+let onUpdateProgress = null
+api.updates.onProgress(p => { if (onUpdateProgress) onUpdateProgress(p) })
+
+function showUpdateModal (info) {
+  const newLine = el('div', { class: 'card-sub', text: 'New version: v' + (info.latest || '?') })
+  const curLine = el('div', { class: 'card-sub', text: 'Current version: v' + (info.current || '?') })
+  const fileLine = el('div', { class: 'hint', text: info.downloadName
+    ? 'Will download: ' + info.downloadName
+    : 'No installer for your OS is published for this version yet \u2014 Update now will open the GitHub release page instead.' })
+  const status = el('div', { class: 'hint', text: '' })
+  const btnRow = el('div', { class: 'modal-actions' })
+  const updateBtn = el('button', { class: 'btn primary', text: 'Update now' })
+  const laterBtn = el('button', { class: 'btn', text: 'Update later' })
+  const ignoreBtn = el('button', { class: 'btn', text: 'Ignore' })
+  btnRow.append(updateBtn, laterBtn, ignoreBtn)
+
+  const content = el('div', { class: 'confirm-box' }, [
+    el('h2', { text: 'Update available' }),
+    newLine,
+    curLine,
+    fileLine,
+    status,
+    btnRow
+  ])
+  openModal(content)
+
+  updateBtn.addEventListener('click', async () => {
+    if (!info.downloadName) {
+      closeModal()
+      api.updates.openReleases()
+      return
+    }
+    updateBtn.disabled = true
+    laterBtn.disabled = true
+    ignoreBtn.disabled = true
+    status.textContent = 'Downloading update...'
+    showProgress('Downloading update', 'Downloading ' + info.downloadName + '...', { noCancel: true })
+    onUpdateProgress = p => {
+      if (p.phase === 'install') {
+        setProgress(1, 'Installing via ' + p.label + '...')
+        status.textContent = 'Installing via ' + p.label + '...'
+        return
+      }
+      setProgress(p.percent || 0, 'Downloading ' + info.downloadName + ' \u00b7 ' + Math.round((p.percent || 0) * 100) + '%')
+    }
+    try {
+      const res = await api.updates.download()
+      onUpdateProgress = null
+      hideProgress()
+      status.textContent = ''
+      if (res && res.relaunching) {
+        toast(res.installed ? 'Update installed via ' + res.installed + ' \u2014 restarting...' : 'Update installed \u2014 restarting...', 'success')
+        setTimeout(closeModal, 500)
+      } else if (res && res.installed) {
+        toast('Update installed via ' + res.installed, 'success')
+        setTimeout(closeModal, 400)
+      } else {
+        toast('Update downloaded: ' + (res && res.path), 'success')
+        setTimeout(closeModal, 400)
+      }
+    } catch (err) {
+      onUpdateProgress = null
+      hideProgress()
+      status.textContent = ''
+      updateBtn.disabled = false
+      laterBtn.disabled = false
+      ignoreBtn.disabled = false
+      toast('Update failed: ' + err.message, 'error')
+    }
+  })
+  laterBtn.addEventListener('click', () => closeModal())
+  ignoreBtn.addEventListener('click', async () => {
+    await api.updates.ignore(info.latest).catch(() => {})
+    state.config.updateIgnoredVersion = info.latest
+    closeModal()
+    toast('Update ignored. It will only appear again when you check for updates manually.', 'info')
+  })
+}
+
+async function checkForUpdatesOnStartup () {
+  if (state.config.checkForUpdates === false) return
+  try {
+    const info = await api.updates.check(false)
+    state.config = await api.config.get()
+    if (info.ok && info.hasUpdate && state.config.updateIgnoredVersion !== info.latest) {
+      showUpdateModal(info)
+    }
+  } catch {}
+}
+
 /* ---------- state ---------- */
 
 const state = {
   view: 'instances',
   config: null,
+  appVersion: null,
   instances: [],
   selectedId: null,
   browse: { tab: 'modrinth', query: '', page: 0, results: [] }
@@ -1169,14 +1272,23 @@ async function openModsModal (inst) {
     }
     for (const m of mods) {
       installedWrap.appendChild(el('div', { class: 'mod-row' }, [
-        el('div', { class: 'mod-inst-icon-wrap' }, [
-          m.meta && m.meta.icon
-            ? el('img', { class: 'mod-inst-icon', src: m.meta.icon, alt: '', onerror: e => { e.target.style.display = 'none' } })
-            : el('div', { class: 'mod-inst-icon placeholder' })
-        ]),
+        (m.meta && m.meta.icon)
+          ? el('div', { class: 'mod-inst-icon-wrap' }, [
+              el('img', { class: 'mod-inst-icon', src: m.meta.icon, alt: '',
+                onerror: e => { const w = e.target.closest('.mod-inst-icon-wrap'); if (w) w.style.display = 'none' } })
+            ])
+          : null,
         el('div', { class: 'mod-info' }, [
-          el('div', { class: 'mod-name', text: (m.meta && m.meta.name) ? m.meta.name : m.filename }),
-          el('div', { class: 'mod-meta', text: (m.meta && m.meta.slug ? m.meta.slug + ' \u00B7 ' : m.filename + ' \u00B7 ') + fmtBytes(m.size) + ' \u00B7 ' + fmtDate(m.mtime) })
+          el('div', { class: 'mod-name', text: modDisplayName(m) }),
+          el('div', { class: 'mod-meta', text: (function () {
+            const bits = []
+            if (m.meta && m.meta.id) bits.push(m.meta.id)
+            else if (m.meta && m.meta.slug) bits.push(m.meta.slug)
+            else bits.push(m.filename)
+            if (m.meta && m.meta.version) bits.push('v' + m.meta.version)
+            bits.push(fmtBytes(m.size), fmtDate(m.mtime))
+            return bits.join(' \u00B7 ')
+          })() })
         ]),
         el('button', { class: 'btn danger small', text: 'Remove', onclick: async () => {
           try {
@@ -1372,8 +1484,10 @@ async function openModsModal (inst) {
     let page = 0
     let loading = false
     let exhausted = false
+    let seq = 0
 
     async function go (toPage) {
+      const mySeq = ++seq
       loading = true
       if (toPage === 0) {
         page = 0
@@ -1384,6 +1498,7 @@ async function openModsModal (inst) {
       }
       try {
         const results = await searchFn(query, toPage)
+        if (mySeq !== seq) return
         if (toPage === 0) {
           box.innerHTML = ''
           if (!results.length) {
@@ -1399,6 +1514,7 @@ async function openModsModal (inst) {
           if (toPage !== 0) box.appendChild(el('div', { class: 'hint', text: 'No more results.' }))
         }
       } catch (e) {
+        if (mySeq !== seq) return
         if (toPage === 0) {
           box.innerHTML = ''
           box.appendChild(el('div', { class: 'hint', text: e.message }))
@@ -1407,7 +1523,7 @@ async function openModsModal (inst) {
           box.appendChild(el('div', { class: 'hint', text: 'Could not load more: ' + e.message }))
         }
       } finally {
-        loading = false
+        if (mySeq === seq) loading = false
       }
     }
 
@@ -1434,14 +1550,21 @@ async function openModsModal (inst) {
       mc: (h.versions || []).slice(-1)[0] || h.mc || '',
       description: h.description || h.summary || ''
     }))),
-    (r) => api.mods.modrinthVersions(inst.id, r.id).then(vs => (vs || []).map(v => {
-      const f = (v.files || []).find(x => x.primary) || (v.files || [])[0] || {}
-      return Object.assign({}, v, {
-        fileName: f.filename || '',
-        fileLength: f.size || v.downloads,
-        install: (jobId) => api.mods.installModrinth(inst.id, r.id, v.id, { name: r.name, slug: r.slug, icon: r.icon }, jobId)
+    (r) => api.mods.modrinthVersions(inst.id, r.id).then(vs => {
+      let list = vs || []
+      if (inst.mcVersion) {
+        const exact = list.filter(v => (v.game_versions || []).includes(inst.mcVersion))
+        if (exact.length) list = exact
+      }
+      return list.map(v => {
+        const f = (v.files || []).find(x => x.primary) || (v.files || [])[0] || {}
+        return Object.assign({}, v, {
+          fileName: f.filename || '',
+          fileLength: f.size || v.downloads,
+          install: (jobId) => api.mods.installModrinth(inst.id, r.id, v.id, { name: r.name, slug: r.slug, icon: r.icon }, jobId)
+        })
       })
-    }))
+    })
   )
   cursePanel = searchPanel('CurseForge',
     (q, page) => api.mods.searchCurse(q, page).then(hits => (hits || []).map(h => ({
@@ -1454,7 +1577,14 @@ async function openModsModal (inst) {
       mc: h.mc || '',
       description: h.summary || h.description || ''
     }))),
-    (r) => api.mods.curseFiles(inst.id, r.id).then(vs => (vs || []).map(v => Object.assign({}, v, { install: (jobId) => api.mods.installCurse(inst.id, r.id, v.id, { name: r.name, slug: r.slug, icon: r.icon }, jobId) })))
+    (r) => api.mods.curseFiles(inst.id, r.id).then(vs => {
+      let list = vs || []
+      if (inst.mcVersion) {
+        const exact = list.filter(v => (v.gameVersions || []).includes(inst.mcVersion))
+        if (exact.length) list = exact
+      }
+      return list.map(v => Object.assign({}, v, { install: (jobId) => api.mods.installCurse(inst.id, r.id, v.id, { name: r.name, slug: r.slug, icon: r.icon }, jobId) }))
+    })
   )
   customPanel = el('div', {}, [
     el('div', { class: 'hint', text: 'Install a mod from a .jar file on your computer.' }),
@@ -1592,6 +1722,7 @@ function renderBrowse () {
     searchPacks()
   } else {
     renderPacks()
+    renderPager(false)
   }
 }
 
@@ -1616,7 +1747,7 @@ function renderPacks () {
       ]),
       el('div', { class: 'card-desc', text: pack.description || pack.summary || '' }),
       el('div', { class: 'badges' }, [
-        el('span', { class: 'badge green', text: 'dl: ' + fmtBytes(pack.downloads || 0) }),
+        el('span', { class: 'badge green', text: 'dl: ' + fmtDownloads(pack.downloads || 0) }),
         pack.updated && el('span', { class: 'badge', text: 'upd: ' + new Date(pack.updated).toLocaleDateString() })
       ]),
       el('div', { class: 'card-actions' }, [
@@ -1626,23 +1757,44 @@ function renderPacks () {
   }
 }
 
+let packSeq = 0
 async function searchPacks (page) {
-  if (page !== undefined) state.browse.page = page
+  const mySeq = ++packSeq
+  const target = page !== undefined ? page : state.browse.page
   const grid = document.getElementById('pack-grid')
-  grid.innerHTML = el('div', { class: 'empty-state', text: 'Searching...' }).outerHTML
+  if (target === 0) {
+    state.browse.results = []
+    grid.innerHTML = el('div', { class: 'empty-state', text: 'Searching...' }).outerHTML
+  }
   try {
     let results
     if (state.browse.tab === 'modrinth') {
-      results = await api.modrinth.search(state.browse.query, state.browse.page)
+      results = await api.modrinth.search(state.browse.query, target)
     } else {
-      results = await api.curse.search(state.browse.query, state.browse.page)
+      results = await api.curse.search(state.browse.query, target)
     }
-    state.browse.results = results
+    if (mySeq !== packSeq) return
+    state.browse.page = target
+    state.browse.results = state.browse.results.concat(results)
     renderPacks()
+    renderPager(results.length >= 20)
   } catch (e) {
+    if (mySeq !== packSeq) return
     toast(e.message, 'error')
-    state.browse.results = []
-    renderPacks()
+    if (target === 0) {
+      state.browse.results = []
+      renderPacks()
+    }
+    renderPager(false)
+  }
+}
+
+function renderPager (hasMore) {
+  const pager = document.getElementById('pack-pager')
+  if (!pager) return
+  pager.innerHTML = ''
+  if (hasMore) {
+    pager.appendChild(el('button', { class: 'btn', text: 'Load more', onclick: () => searchPacks(state.browse.page + 1) }))
   }
 }
 
@@ -1713,14 +1865,23 @@ function latestMcVersion (versions) {
   return list[0] || ''
 }
 
+function mcVersionParts (s) {
+  const m = String(s).trim().match(/^(\d+)(?:\.(\d+))?(?:\.(\d+))?$/)
+  if (!m) return null
+  return [parseInt(m[1], 10), parseInt(m[2] || 0, 10), parseInt(m[3] || 0, 10)]
+}
+
 function cmpMcVersion (x, y) {
-  const rx = String(x).match(/^1\.(\d+)(?:\.(\d+))?$/)
-  const ry = String(y).match(/^1\.(\d+)(?:\.(\d+))?$/)
-  if (rx && ry) {
-    return (parseInt(ry[1], 10) - parseInt(rx[1], 10)) || (parseInt(ry[2] || 0, 10) - parseInt(rx[2] || 0, 10))
+  const ax = mcVersionParts(x)
+  const ay = mcVersionParts(y)
+  if (ax && ay) {
+    for (let i = 0; i < 3; i++) {
+      if (ax[i] !== ay[i]) return ay[i] - ax[i]
+    }
+    return 0
   }
-  if (rx) return -1
-  if (ry) return 1
+  if (ax) return -1
+  if (ay) return 1
   return String(y) < String(x) ? -1 : 1
 }
 
@@ -1791,7 +1952,8 @@ async function openPackDetail (pack) {
     try {
       const versions = await api.modrinth.versions(pack.id)
       const sorted = versions.slice().sort(sortPackVersions)
-      for (const v of sorted.slice(0, 20)) {
+      if (!sorted.length) versWrap.appendChild(el('div', { class: 'card-sub', text: 'No versions available.' }))
+      for (const v of sorted) {
         versWrap.appendChild(el('div', { class: 'pack-version' }, [
           el('span', { class: 'ver-name', text: v.name }),
           el('span', { class: 'ver-meta', text: (v.game_versions || []).join(', ') + ' \u2022 ' + (v.loaders || []).join(', ') }),
@@ -1825,8 +1987,10 @@ async function openPackDetail (pack) {
       ])
     ])))
     try {
-      const files = await api.curse.files(pack.id, {})
-      for (const f of files.slice().sort(sortPackVersions).slice(0, 30)) {
+      const files = await api.curse.files(pack.id, { maxPages: 10 })
+      const sortedFiles = files.slice().sort(sortPackVersions)
+      if (!sortedFiles.length) filesWrap.appendChild(el('div', { class: 'card-sub', text: 'No files available.' }))
+      for (const f of sortedFiles) {
         filesWrap.appendChild(el('div', { class: 'pack-version' }, [
           el('div', {}, [
             el('div', { class: 'ver-name', text: f.displayName }),
@@ -1931,6 +2095,8 @@ async function renderSettings () {
   const form = document.getElementById('settings-form')
   form.innerHTML = ''
 
+  const appVersion = state.appVersion || '?'
+  const updEnabled = el('input', { type: 'checkbox', checked: state.config.checkForUpdates !== false })
   const maxMem = el('input', { type: 'number', value: state.config.maxMemory, min: 512, step: 256 })
   const minMem = el('input', { type: 'number', value: state.config.minMemory, min: 256, step: 128 })
   const width = el('input', { type: 'number', value: state.config.resolution.width })
@@ -1938,11 +2104,18 @@ async function renderSettings () {
   const dlLoc = el('input', { value: state.config.downloadsLocation })
 
   const themeSel = el('select', {})
-  for (const [k, label] of [['midnight', 'Midnight'], ['dark', 'Dark'], ['light', 'Light']]) {
+  for (const [k, label] of [['system', 'System (follow OS)'], ['midnight', 'Midnight'], ['dark', 'Dark'], ['light', 'Light']]) {
     themeSel.appendChild(el('option', { value: k, text: label }))
   }
-  themeSel.value = state.config.theme || 'midnight'
-  themeSel.addEventListener('change', () => applyTheme(themeSel.value))
+  themeSel.value = state.config.theme || 'system'
+  const accentCustom = el('input', { type: 'checkbox', checked: !!state.config.accent })
+  const accentInput = el('input', { type: 'color', value: state.config.accent || '#ff8800' })
+  function applyThemeNow () {
+    applyTheme(themeSel.value, accentCustom.checked ? accentInput.value : '')
+  }
+  themeSel.addEventListener('change', applyThemeNow)
+  accentCustom.addEventListener('change', applyThemeNow)
+  accentInput.addEventListener('change', applyThemeNow)
 
   const javaSel = el('select', {})
   const pathHint = el('div', { class: 'hint path-hint', title: state.config.javaPath || '', text: state.config.javaPath || 'Auto-detect: the best Java for each Minecraft version is picked automatically.' })
@@ -2003,6 +2176,7 @@ async function renderSettings () {
     el('div', { class: 'setting-row inline' }, [warnMem, el('label', { text: 'Warn when an instance uses less RAM than the global default' })]),
     el('div', { class: 'setting-row inline' }, [trackTime, el('label', { text: 'Track playtime per instance' })])
   ]))
+  form.appendChild(updatesCard(appVersion, updEnabled))
   form.appendChild(el('div', { class: 'setting-card' }, [
     el('h3', { text: 'Modpacks & Downloads' }),
     el('div', { class: 'setting-row' }, [el('label', { text: 'Downloads location' }), dlLoc]),
@@ -2010,7 +2184,9 @@ async function renderSettings () {
   ]))
   form.appendChild(el('div', { class: 'setting-card' }, [
     el('h3', { text: 'Appearance' }),
-    el('div', { class: 'setting-row' }, [el('label', { text: 'Theme' }), themeSel])
+    el('div', { class: 'setting-row' }, [el('label', { text: 'Theme' }), themeSel]),
+    el('div', { class: 'hint', text: 'System follows your OS dark/light setting on Windows and Linux.' }),
+    el('div', { class: 'setting-row inline' }, [accentCustom, el('label', { text: 'Custom accent color' }), accentInput])
   ]))
 
   const saveBtn = el('button', { class: 'btn primary', text: 'Save Settings', onclick: async () => {
@@ -2024,14 +2200,91 @@ async function renderSettings () {
       autoDownloadJava: autoDlJava.checked,
       warnInsufficientMemory: warnMem.checked,
       trackPlaytime: trackTime.checked,
-      theme: themeSel.value
+      checkForUpdates: updEnabled.checked,
+      theme: themeSel.value,
+      accent: accentCustom.checked ? accentInput.value : ''
     }
     await api.config.set(patch)
     state.config = await api.config.get()
+    applyTheme(state.config.theme, state.config.accent)
     toast('Settings saved', 'success')
     renderUserChip()
   } })
   form.appendChild(el('div', { style: 'grid-column:1/-1' }, [saveBtn]))
+}
+
+function updatesCard (appVersion, updEnabled) {
+  const updStatus = el('div', { class: 'hint' })
+  const latestEl = el('span', { text: state.config.lastUpdateVersion ? 'v' + state.config.lastUpdateVersion : 'Not checked yet' })
+  const lastEl = el('span', { text: state.config.lastUpdateCheck ? fmtDate(state.config.lastUpdateCheck) : 'Never' })
+  function updStatusText (info) {
+    if (!info.ok) {
+      updStatus.textContent = 'Could not reach the update server.'
+      return
+    }
+    if (info.hasUpdate) {
+      updStatus.textContent = 'Update available: v' + info.latest
+      return
+    }
+    if (info.latest && compareVersionsForUpdate(info.latest, info.current) >= 0) {
+      updStatus.textContent = 'Latest version already installed.'
+      return
+    }
+    updStatus.textContent = 'No update information found.'
+  }
+  const checkBtn = el('button', { class: 'btn small', text: 'Check for updates', onclick: async () => {
+    checkBtn.disabled = true
+    checkBtn.textContent = 'Checking...'
+    try {
+      const info = await api.updates.check(true)
+      state.config = await api.config.get()
+      latestEl.textContent = state.config.lastUpdateVersion ? 'v' + state.config.lastUpdateVersion : 'Not found'
+      lastEl.textContent = fmtDate(state.config.lastUpdateCheck)
+      updStatusText(info)
+      if (info.ok && info.hasUpdate) {
+        showUpdateModal(info)
+      }
+    } catch (err) {
+      updStatus.textContent = 'Could not reach the update server.'
+      toast('Update check failed: ' + err.message, 'error')
+    } finally {
+      checkBtn.disabled = false
+      checkBtn.textContent = 'Check for updates'
+    }
+  } })
+  const updateBtn = el('button', { class: 'btn small', text: 'Update now', onclick: async () => {
+    updateBtn.disabled = true
+    try {
+      const info = await api.updates.check(true)
+      if (info.ok && info.hasUpdate) showUpdateModal(info)
+      else if (info.latest && compareVersionsForUpdate(info.latest, info.current) >= 0) toast('Latest version already installed', 'info')
+      else toast('No update found', 'info')
+    } catch (err) {
+      toast('Update check failed: ' + err.message, 'error')
+    } finally {
+      updateBtn.disabled = false
+    }
+  } })
+  return el('div', { class: 'setting-card' }, [
+    el('h3', { text: 'Updates' }),
+    el('div', { class: 'setting-row inline' }, [updEnabled, el('label', { text: 'Check for updates on startup' })]),
+    el('div', { class: 'setting-row' }, [el('label', { text: 'Current version' }), el('span', { text: 'v' + (appVersion || '?') })]),
+    el('div', { class: 'setting-row' }, [el('label', { text: 'Latest version' }), latestEl]),
+    el('div', { class: 'setting-row' }, [el('label', { text: 'Last checked' }), lastEl]),
+    updStatus,
+    el('div', { class: 'setting-row' }, [checkBtn, updateBtn])
+  ])
+}
+
+function compareVersionsForUpdate (a, b) {
+  const pa = String(a || '').replace(/^v/i, '').split('.').map(p => parseInt(p, 10) || 0)
+  const pb = String(b || '').replace(/^v/i, '').split('.').map(p => parseInt(p, 10) || 0)
+  const n = Math.max(pa.length, pb.length)
+  for (let i = 0; i < n; i++) {
+    const d = (pa[i] || 0) - (pb[i] || 0)
+    if (d) return d
+  }
+  return 0
 }
 
 /* ---------- 3D skin preview ---------- */
@@ -2388,9 +2641,64 @@ async function buildAccountCard () {
 
 /* ---------- init ---------- */
 
-function applyTheme (theme) {
-  document.documentElement.dataset.theme = theme || 'midnight'
+/* ---------- theme + accent ---------- */
+
+function hexToRgb (hex) {
+  let h = String(hex || '').replace('#', '')
+  if (!/^[0-9a-f]{3,8}$/i.test(h)) return null
+  if (h.length === 3 || h.length === 4) h = h.split('').map(c => c + c).join('')
+  const n = parseInt(h.slice(0, 6), 16)
+  return [n >> 16 & 255, n >> 8 & 255, n & 255]
 }
+
+function rgba (hex, a) {
+  const r = hexToRgb(hex)
+  if (!r) return 'rgba(0,0,0,0)'
+  return `rgba(${r[0]}, ${r[1]}, ${r[2]}, ${a})`
+}
+
+function mix (hex, other, t) {
+  const a = hexToRgb(hex)
+  const b = hexToRgb(other)
+  if (!a || !b) return hex
+  const m = a.map((v, i) => Math.round(v + (b[i] - v) * t))
+  return '#' + m.map(v => v.toString(16).padStart(2, '0')).join('')
+}
+
+function applyAccent (accent, resolvedTheme) {
+  const root = document.documentElement
+  const vars = ['--accent', '--accent-2', '--accent-soft', '--card-grad', '--brand-grad', '--primary-grad']
+  if (!accent || !hexToRgb(accent)) {
+    for (const v of vars) root.style.removeProperty(v)
+    return
+  }
+  const isLight = resolvedTheme === 'light'
+  const accent2 = mix(accent, isLight ? '#ffffff' : '#000000', isLight ? 0.28 : 0.38)
+  root.style.setProperty('--accent', accent)
+  root.style.setProperty('--accent-2', accent2)
+  root.style.setProperty('--accent-soft', rgba(accent, isLight ? 0.12 : 0.16))
+  root.style.setProperty('--card-grad', `linear-gradient(180deg, ${rgba(accent, isLight ? 0.06 : 0.10)}, rgba(0,0,0,0) 46%)`)
+  root.style.setProperty('--brand-grad', `linear-gradient(135deg, ${accent}, ${accent2})`)
+  root.style.setProperty('--primary-grad', `linear-gradient(135deg, ${accent}, ${accent2})`)
+}
+
+function applyTheme (theme, accent) {
+  const root = document.documentElement
+  let resolved = theme || 'midnight'
+  if (resolved === 'system') {
+    const dark = window.matchMedia('(prefers-color-scheme: dark)')
+    resolved = dark.matches ? 'dark' : 'light'
+    if (!themeMedia) {
+      themeMedia = dark
+      dark.addEventListener('change', () => {
+        if ((state.config.theme || 'system') === 'system') applyTheme('system', state.config.accent)
+      })
+    }
+  }
+  root.dataset.theme = resolved
+  applyAccent(accent, resolved)
+}
+let themeMedia = null
 
 document.getElementById('btn-new').addEventListener('click', newInstance)
 document.getElementById('btn-import').addEventListener('click', importFromFile)
@@ -2421,10 +2729,12 @@ wireWindowControls()
 
 async function init () {
   state.config = await api.config.get()
-  applyTheme(state.config.theme)
+  state.appVersion = (await api.appInfo.version().catch(() => '?')) || '?'
+  applyTheme(state.config.theme, state.config.accent)
   renderUserChip()
   renderInstances()
   if (!state.config.onboarded) runWizard()
+  checkForUpdatesOnStartup()
 }
 
 init()

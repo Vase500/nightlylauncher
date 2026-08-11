@@ -157,17 +157,25 @@ async function getMod (modId, cfg) {
 async function getFiles (modId, opts = {}) {
   return serial(async () => {
     const id = await resolveId(modId)
-    const qs = new URLSearchParams({ pageSize: String(opts.pageSize || 50) })
-    if (opts.gameVersion) qs.set('gameVersion', String(opts.gameVersion))
-    const w = getWin()
-    let data = null
-    for (let attempt = 0; attempt < 3 && !data; attempt++) {
-      await load(w, `${API}/mods/${id}/files?${qs}`, 2000)
-      const txt = await pageText(w)
-      try { data = JSON.parse(txt) } catch {}
+    const pageSize = opts.pageSize || 50
+    const maxPages = opts.maxPages || 1
+    const out = []
+    for (let page = 0; page < maxPages; page++) {
+      const qs = new URLSearchParams({ pageSize: String(pageSize), index: String(page * pageSize) })
+      if (opts.gameVersion) qs.set('gameVersion', String(opts.gameVersion))
+      const w = getWin()
+      let data = null
+      for (let attempt = 0; attempt < 3 && !data; attempt++) {
+        await load(w, `${API}/mods/${id}/files?${qs}`, 2000)
+        const txt = await pageText(w)
+        try { data = JSON.parse(txt) } catch {}
+      }
+      if (!data || !Array.isArray(data.data)) throw new Error('Could not load CurseForge files')
+      if (!data.data.length) break
+      out.push(...data.data)
+      if (data.data.length < pageSize) break
     }
-    if (!data || !Array.isArray(data.data)) throw new Error('Could not load CurseForge files')
-    return data.data.map(f => ({
+    return out.map(f => ({
       id: f.id,
       displayName: f.displayName || f.fileName,
       fileName: f.fileName,

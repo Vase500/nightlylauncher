@@ -88,7 +88,7 @@ function memoryFor (opts) {
 
 /* ---------------- .mrpack ---------------- */
 
-async function importMrpack (file, { name, downloadMods = true, includeOptional = false, onProgress, signal } = {}) {
+async function importMrpack (file, { name, downloadMods = true, includeOptional = false, onProgress, signal, ...opts } = {}) {
   const tmp = path.join(paths.cache(), 'import-' + Date.now())
   util.unzipTo(file, tmp)
   let inst = null
@@ -118,7 +118,7 @@ async function importMrpack (file, { name, downloadMods = true, includeOptional 
     const files = (index.files || [])
       .filter(f => {
         const env = f.env || {}
-        if (env.client === 'server') return false
+        if (env.client === 'unsupported' || env.client === 'server') return false
         if (env.client === 'optional' && !includeOptional) return false
         return true
       })
@@ -147,7 +147,7 @@ async function importMrpack (file, { name, downloadMods = true, includeOptional 
 
 /* ---------------- CurseForge zip ---------------- */
 
-async function importCurseZip (file, { name, downloadMods = true, includeOptional = false, onProgress, signal } = {}) {
+async function importCurseZip (file, { name, downloadMods = true, includeOptional = false, onProgress, signal, ...opts } = {}) {
   const tmp = path.join(paths.cache(), 'import-' + Date.now())
   util.unzipTo(file, tmp)
   let inst = null
@@ -212,7 +212,7 @@ async function importCurseZip (file, { name, downloadMods = true, includeOptiona
 
 /* ---------------- Prism / MultiMC zip ---------------- */
 
-async function importPrismZip (file, { name, downloadMods = true, onProgress, signal } = {}) {
+async function importPrismZip (file, { name, downloadMods = true, onProgress, signal, ...opts } = {}) {
   const tmp = path.join(paths.cache(), 'import-' + Date.now())
   util.unzipTo(file, tmp)
   let inst = null

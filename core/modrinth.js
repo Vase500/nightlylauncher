@@ -70,11 +70,9 @@ async function getProjects (ids) {
 }
 
 async function getVersions (projectId, { gameVersions, loaders } = {}) {
-  const facets = []
-  if (gameVersions && gameVersions.length) facets.push(['versions:' + gameVersions.join('|')])
-  if (loaders && loaders.length) facets.push(['loaders:' + loaders.join('|')])
   const qs = new URLSearchParams()
-  if (facets.length) qs.set('facets', JSON.stringify(facets))
+  if (gameVersions && gameVersions.length) qs.set('game_versions', JSON.stringify(gameVersions))
+  if (loaders && loaders.length) qs.set('loaders', JSON.stringify(loaders))
   const data = await util.request(`${BASE}/project/${encodeURIComponent(projectId)}/version?${qs}`, { json: true, headers: { 'User-Agent': 'nightly-launcher/1.0' } })
   return (data || []).map(v => ({
     id: v.id,

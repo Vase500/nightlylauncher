@@ -38,10 +38,10 @@ function getJavaVersion (javaPath) {
   try {
     const r = spawnSync(javaPath, ['-version'], { encoding: 'utf8', timeout: 15000 })
     const text = (r.stderr || '') + '\n' + (r.stdout || '')
-    const m = text.match(/version\s+"([0-9]+)/)
-    if (m) return parseInt(m[1], 10)
-    const m2 = text.match(/version\s+1\.([0-9]+)/)
-    if (m2) return parseInt(m2[1], 10)
+    const legacy = text.match(/version\s+"1\.([0-9]+)/)
+    if (legacy) return parseInt(legacy[1], 10)
+    const modern = text.match(/version\s+"([0-9]+)/)
+    if (modern) return parseInt(modern[1], 10)
     return null
   } catch {
     return null
@@ -231,12 +231,14 @@ async function downloadJava (major, onProgress) {
   const platform = process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'mac' : 'linux'
   const arch = process.arch === 'x64' ? 'x64' : process.arch === 'arm64' ? 'aarch64' : 'x64'
   const url = `${ADOPTIUM_API}/v3/binary/latest/${major}/ga/${platform}/${arch}/jdk/hotspot/normal/eclipse`
-  const zipPath = path.join(paths.cache(), `adoptium-jdk${major}-${platform}-${arch}.zip`)
+  const ext = process.platform === 'win32' ? '.zip' : '.tar.gz'
+  const zipPath = path.join(paths.cache(), `adoptium-jdk${major}-${platform}-${arch}${ext}`)
   await util.download(url, zipPath, { onProgress })
   const extractDir = path.join(destDir, `jdk-${major}`)
   extractArchive(zipPath, extractDir)
   const exe = findJavaUnder(extractDir)
   if (!exe) throw new Error('Could not locate java after extraction')
+  chmodJavaExe(exe)
   return exe
 }
 
@@ -265,6 +267,7 @@ async function downloadOracle (major, onProgress) {
   extractArchive(zipPath, extractDir)
   const exe = findJavaUnder(extractDir)
   if (!exe) throw new Error('Could not locate java after extraction')
+  chmodJavaExe(exe)
   return exe
 }
 
@@ -331,6 +334,12 @@ function findJavaUnder (dir) {
     if (path.basename(p) === javaExeName()) return p
   }
   return null
+}
+
+function chmodJavaExe (exe) {
+  if (process.platform === 'win32') return
+  try { fs.chmodSync(exe, 0o755) } catch {}
+  try { fs.chmodSync(path.join(path.dirname(exe), 'javac'), 0o755) } catch {}
 }
 
 module.exports = { detectJava, getJavaVersion, pickBest, pickBestFor, downloadJava, downloadProvider, downloadOracle, downloadMojang, listProviderVersions, ensureJavaFor, javaExeName }

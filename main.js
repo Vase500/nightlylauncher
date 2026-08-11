@@ -1,6 +1,7 @@
 'use strict'
 const path = require('path')
 const fs = require('fs')
+const { spawn, execFile } = require('child_process')
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron')
 const paths = require('./core/paths')
 const config = require('./core/config')
@@ -16,6 +17,7 @@ const java = require('./core/java')
 const accounts = require('./core/accounts')
 const auth = require('./core/auth')
 const skins = require('./core/skins')
+const updates = require('./core/updates')
 const util = require('./core/util')
 
 app.setName('Nightly Launcher')
@@ -36,6 +38,7 @@ function createSplash () {
     resizable: false,
     alwaysOnTop: true,
     skipTaskbar: true,
+    hasShadow: false,
     icon: appIcon,
     webPreferences: { contextIsolation: true }
   })
@@ -52,6 +55,7 @@ function createMain () {
     frame: false,
     transparent: true,
     show: false,
+    hasShadow: false,
     icon: appIcon,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -143,6 +147,106 @@ ipcMain.handle('install:cancel', (e, jobId) => {
 
 ipcMain.handle('config:get', () => config.load())
 ipcMain.handle('config:set', (e, patch) => config.save(patch))
+ipcMain.handle('app:version', () => app.getVersion())
+
+/* ---------------- updates ---------------- */
+
+let updateCache = null
+let updateCacheAt = 0
+const UPDATE_TTL = 5 * 60 * 1000
+
+async function checkUpdates (force) {
+  if (!force && updateCache && Date.now() - updateCacheAt < UPDATE_TTL) return updateCache
+  let info
+  try {
+    info = await updates.check(app.getVersion())
+    info.ok = true
+  } catch (err) {
+    info = { current: app.getVersion(), latest: null, hasUpdate: false, downloadUrl: null, downloadName: null, downloadSize: 0, source: null, ok: false, error: err.message }
+  }
+  updateCache = info
+  updateCacheAt = Date.now()
+  config.save({ lastUpdateCheck: Date.now(), lastUpdateVersion: info.latest || '' })
+  return info
+}
+
+ipcMain.handle('updates:check', (e, force) => checkUpdates(!!force))
+
+function runInstall (install) {
+  return new Promise(resolve => {
+    execFile(install.cmd, install.args, { windowsHide: true }, err => {
+      resolve(err ? (err.code !== undefined ? err.code : 1) : 0)
+    })
+  })
+}
+
+function spawnDetached (file, args) {
+  try {
+    const child = spawn(file, args, { detached: true, stdio: 'ignore' })
+    child.unref()
+    return child
+  } catch { return null }
+}
+
+function relaunchExe () {
+  if (process.platform === 'win32') {
+    const exec = String(process.execPath || '').toLowerCase()
+    if (exec.includes('\\programs\\') || exec.includes('\\program files\\')) return process.execPath
+    const base = path.join(process.env.LOCALAPPDATA || '', 'Programs')
+    for (const dir of ['Nightly Launcher', 'nightly-launcher', 'nightlylauncher']) {
+      const p = path.join(base, dir, 'Nightly Launcher.exe')
+      try { if (fs.existsSync(p)) return p } catch {}
+    }
+    return path.join(base, 'Nightly Launcher', 'Nightly Launcher.exe')
+  }
+  if (process.platform === 'linux') {
+    const bin = '/usr/bin/nightly-launcher'
+    try { if (fs.existsSync(bin)) return bin } catch {}
+    return process.execPath
+  }
+  return process.execPath
+}
+
+function relaunchApp () {
+  const target = relaunchExe()
+  if (process.platform === 'win32') spawnDetached('cmd.exe', ['/c', 'start', '', '"' + target + '"'])
+  else spawnDetached(target, [])
+  setTimeout(() => app.quit(), 400)
+}
+
+ipcMain.handle('updates:download', async () => {
+  const info = await checkUpdates(true)
+  const res = await updates.download(info, p => {
+    send('update:progress', {
+      received: p.received, total: p.total, percent: p.total ? p.received / p.total : 0, dest: p.dest
+    })
+  })
+  const install = updates.installCommand(res.path)
+  if (install) {
+    send('update:progress', { phase: 'install', label: install.label })
+    const code = await runInstall(install)
+    if (code === 0) {
+      relaunchApp()
+      return { ok: true, installed: install.label, relaunching: true }
+    }
+    shell.openPath(res.path).catch(() => {})
+    return { ok: true, installed: null, relaunching: false }
+  }
+  if (process.platform === 'win32') {
+    const script = path.join(paths.cache(), 'nightly-update-' + Date.now() + '.cmd')
+    const target = relaunchExe()
+    fs.writeFileSync(script, '@echo off\r\ntimeout /t 2 /nobreak >nul\r\nstart "" /wait "' + res.path + '" /S\r\nif exist "' + target + '" start "" "' + target + '"\r\n')
+    spawnDetached('cmd.exe', ['/c', script])
+    setTimeout(() => app.quit(), 500)
+    return { ok: true, installed: null, relaunching: true }
+  }
+  shell.openPath(res.path).catch(() => {})
+  return { ok: true, installed: null, relaunching: false }
+})
+
+ipcMain.handle('updates:ignore', (e, version) => config.save({ updateIgnoredVersion: version || '' }))
+ipcMain.handle('updates:setEnabled', (e, enabled) => config.save({ checkForUpdates: !!enabled }))
+ipcMain.handle('updates:openReleases', () => shell.openExternal('https://github.com/Vase500/nightlylauncher/releases'))
 
 ipcMain.handle('versions:list', (e, filters) => mojang.listVersions(filters))
 ipcMain.handle('loaders:list', (e, loader, mc) => loaders.listLoaderVersions(loader, mc))
@@ -224,13 +328,34 @@ ipcMain.handle('mods:resolveIcons', async (e, instanceId) => {
   const modsList = mods.list(instanceId)
   const meta = mods.readMeta(instanceId)
   const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+
+  // 0) read metadata + icon straight out of each jar (offline, reliable).
+  //    Existing metadata (Modrinth/CurseForge installs) wins for name/slug/
+  //    icon; the jar fills in whatever is missing (id, version, icon).
+  let changed = false
+  {
+    const dir = mods.modsDir(instanceId)
+    for (const m of modsList) {
+      const existing = meta[m.filename]
+      if (existing && existing.source === 'jar' && existing.mtime === m.mtime) continue
+      try {
+        const jm = mods.readJarMeta(path.join(dir, m.filename))
+        if (!jm) continue
+        const merged = Object.assign({}, jm, existing || {})
+        merged.mtime = m.mtime
+        merged.source = 'jar'
+        meta[m.filename] = merged
+        changed = true
+      } catch {}
+    }
+  }
+
   const pending = modsList.filter(m => {
     if (meta[m.filename] && meta[m.filename].icon) return false
     if (resolveSkipped.has(instanceId + '\u0000' + m.filename)) return false
     return true
   })
   const newMeta = {}
-  let changed = false
 
   // 1) one bulk lookup per 50 candidate slugs instead of one search per mod
   const wanted = new Map()
@@ -297,7 +422,7 @@ ipcMain.handle('mods:resolveIcons', async (e, instanceId) => {
       const fn = files[i2++]
       const entry = newMeta[fn]
       entry.icon = await iconDataUrl(entry.icon)
-      meta[fn] = entry
+      meta[fn] = Object.assign({}, meta[fn], entry)
       changed = true
     }
   }
