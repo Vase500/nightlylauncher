@@ -6,6 +6,45 @@ Nightly Launcher is a passion project developed by me with the help of **ChatGPT
 
 > 🚧 **Nightly Launcher is an actively developed project.** Features, design, and functionality may change as development continues.
 
+# 🖼️ Screenshots
+
+### 🏠 Main Menu
+
+The main dashboard of Nightly Launcher, providing quick access to your Minecraft instances, modpacks, and launcher features.
+
+<img width="2950" height="1900" alt="mainmenu" src="https://github.com/user-attachments/assets/2a634c0a-1731-458f-9953-059d2725f673" />
+
+### 📦 Modpack Download
+
+Browse and download supported modpacks directly through the launcher.
+
+<img width="2950" height="1800" alt="modpackdownload" src="https://github.com/user-attachments/assets/269f3754-8bce-405d-8b73-99f14740151a" />
+
+### ⚙️ Instance Settings
+
+Manage individual Minecraft instances and configure their settings.
+
+<img width="2360" height="2069" alt="instancesettings" src="https://github.com/user-attachments/assets/cc06d984-0e4a-4819-a564-530bd4487cc5" />
+
+### 🎨 Launcher Settings
+
+Customize the launcher's appearance and general behavior.
+
+<img width="2065" height="1948" alt="settingspreview" src="https://github.com/user-attachments/assets/1818c037-3f81-4cf8-bf8a-8b3fdad80949" />
+
+### 👤 Skins & Capes
+
+Manage your Minecraft skin and cape settings.
+
+<img width="1770" height="1886" alt="skincapesettings" src="https://github.com/user-attachments/assets/f84018f2-495e-4498-bad9-072cbfb13353" />
+
+### ⛏️ Minecraft Running
+
+Minecraft launched and running directly through Nightly Launcher.
+
+<img width="2950" height="1900" alt="minecraftrunning" src="https://github.com/user-attachments/assets/248859ad-ed23-4dd3-9436-04b4a8fc536b" />
+
+
 ## 💻 System Requirements
 
 * **Windows** — Windows 10 or later (64-bit)
