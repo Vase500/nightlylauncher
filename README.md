@@ -6,6 +6,8 @@ Nightly Launcher is a passion project developed by me with the help of **ChatGPT
 
 > 🚧 **Nightly Launcher is an actively developed project.** Features, design, and functionality may change as development continues.
 
+### Website https://nightlylauncher.framer.website/
+
 # 🖼️ Screenshots
 
 ### 🏠 Main Menu
