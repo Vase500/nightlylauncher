@@ -25,7 +25,10 @@ const DEFAULTS = {
   checkForUpdates: true,
   updateIgnoredVersion: '',
   lastUpdateCheck: 0,
-  lastUpdateVersion: ''
+  lastUpdateVersion: '',
+  useGamemode: false,
+  useMangohud: false,
+  useDiscreteGpu: false
 }
 
 let cache = null

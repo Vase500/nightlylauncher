@@ -10,6 +10,7 @@ const mojang = require('./mojang')
 const java = require('./java')
 const accounts = require('./accounts')
 const util = require('./util')
+const native = require('./native')
 const instances = require('./instances')
 
 const running = new Map()
@@ -293,16 +294,31 @@ async function launch (instance, { onProgress, onLog, onExit } = {}) {
   util.ensureDirSync(opts.gameDir)
 
   const cfg = config.load()
+  const toolCmd = []
+  const gpuEnv = {}
+  if (cfg.useMangohud && native.inPath('mangohud')) toolCmd.push('mangohud')
+  if (cfg.useGamemode && native.inPath('gamemoderun')) toolCmd.push('gamemoderun')
+  if (cfg.useDiscreteGpu && process.platform !== 'win32') {
+    Object.assign(gpuEnv, {
+      DRI_PRIME: '1',
+      __NV_PRIME_RENDER_OFFLOAD: '1',
+      __GLX_VENDOR_LIBRARY_NAME: 'nvidia',
+      __VK_LAYER_NV_optimus: 'NVIDIA_only'
+    })
+  }
 
   if (onLog) {
     onLog('Nightly Launcher', `Launching ${instance.name}`)
     onLog('Java', javaPath)
-    onLog('Command', `java ${args.map(a => a.includes(' ') ? `"${a}"` : a).join(' ')}`)
+    onLog('Command', `${toolCmd.length ? toolCmd.join(' ') + ' ' : ''}java ${args.map(a => a.includes(' ') ? `"${a}"` : a).join(' ')}`)
+    if (Object.keys(gpuEnv).length) onLog('GPU', 'Discrete GPU forced (' + Object.keys(gpuEnv).join(', ') + ')')
   }
 
-  const proc = spawn(javaPath, args, {
+  const command = toolCmd[0] || javaPath
+  const cmdArgs = toolCmd.length ? [javaPath, ...args] : args
+  const proc = spawn(command, cmdArgs, {
     cwd: opts.gameDir,
-    env: Object.assign({}, process.env, {
+    env: Object.assign({}, process.env, gpuEnv, {
       APPDATA: process.env.APPDATA,
       MinecraftNativesDir: nativesDir,
       JAVA_HOME: path.dirname(path.dirname(javaPath))

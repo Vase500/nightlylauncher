@@ -81,8 +81,8 @@ Nightly Launcher is currently in the early development stage.
 * [x] Linux Support (.deb, .rpm, .appimage)
 * [x] First release of Nightly Launcher
 * [ ] Updated Launcher UI
-* [ ] Automatic updates
-* [ ] Additional generally needed features
+* [x] Automatic updates
+* [x] Additional generally needed features
 * [ ] Better support for the launcher
 
 ## 📄 License

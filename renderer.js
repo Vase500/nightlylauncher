@@ -2123,6 +2123,10 @@ async function renderSettings () {
   const autoDlJava = el('input', { type: 'checkbox', checked: state.config.autoDownloadJava !== false })
   const warnMem = el('input', { type: 'checkbox', checked: state.config.warnInsufficientMemory !== false })
   const trackTime = el('input', { type: 'checkbox', checked: state.config.trackPlaytime !== false })
+  const isLinux = window.nightly.platform === 'linux'
+  let gm = null
+  let mh = null
+  let dg = null
   function updatePathHint () {
     if (javaSel.value) {
       pathHint.textContent = javaSel.value
@@ -2171,6 +2175,26 @@ async function renderSettings () {
     el('div', { class: 'setting-row' }, [el('label', { text: 'Resolution width (px)' }), width]),
     el('div', { class: 'setting-row' }, [el('label', { text: 'Resolution height (px)' }), height])
   ]))
+  if (isLinux) {
+    let tools = { gamemode: false, mangohud: false }
+    try { tools = await api.native.detect() } catch {}
+    gm = el('input', { type: 'checkbox', checked: !!state.config.useGamemode, disabled: !tools.gamemode })
+    mh = el('input', { type: 'checkbox', checked: !!state.config.useMangohud, disabled: !tools.mangohud })
+    dg = el('input', { type: 'checkbox', checked: !!state.config.useDiscreteGpu })
+    form.appendChild(el('div', { class: 'setting-card' }, [
+      el('h3', { text: 'Game Performance (Linux)' }),
+      el('div', { class: 'setting-row inline' }, [gm, el('label', { text: 'Use Feral GameMode (gamemoderun)' })]),
+      el('div', { class: 'hint', text: tools.gamemode
+        ? 'Feral GameMode is installed.'
+        : 'Feral GameMode is not installed (sudo apt install gamemode)' }),
+      el('div', { class: 'setting-row inline' }, [mh, el('label', { text: 'Use MangoHud (mangohud)' })]),
+      el('div', { class: 'hint', text: tools.mangohud
+        ? 'MangoHud is installed.'
+        : 'MangoHud is not installed (sudo apt install mangohud)' }),
+      el('div', { class: 'setting-row inline' }, [dg, el('label', { text: 'Use discrete GPU (force dedicated graphics over the iGPU)' })]),
+      el('div', { class: 'hint', text: 'Sets DRI_PRIME / NVIDIA PRIME offload so Java renders on your dedicated GPU.' })
+    ]))
+  }
   form.appendChild(el('div', { class: 'setting-card' }, [
     el('h3', { text: 'Launcher Behavior' }),
     el('div', { class: 'setting-row inline' }, [warnMem, el('label', { text: 'Warn when an instance uses less RAM than the global default' })]),
@@ -2203,6 +2227,11 @@ async function renderSettings () {
       checkForUpdates: updEnabled.checked,
       theme: themeSel.value,
       accent: accentCustom.checked ? accentInput.value : ''
+    }
+    if (isLinux) {
+      patch.useGamemode = gm.checked
+      patch.useMangohud = mh.checked
+      patch.useDiscreteGpu = dg.checked
     }
     await api.config.set(patch)
     state.config = await api.config.get()

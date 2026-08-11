@@ -19,6 +19,7 @@ const auth = require('./core/auth')
 const skins = require('./core/skins')
 const updates = require('./core/updates')
 const util = require('./core/util')
+const native = require('./core/native')
 
 app.setName('Nightly Launcher')
 app.setAppUserModelId('com.nightly.launcher')
@@ -247,6 +248,8 @@ ipcMain.handle('updates:download', async () => {
 ipcMain.handle('updates:ignore', (e, version) => config.save({ updateIgnoredVersion: version || '' }))
 ipcMain.handle('updates:setEnabled', (e, enabled) => config.save({ checkForUpdates: !!enabled }))
 ipcMain.handle('updates:openReleases', () => shell.openExternal('https://github.com/Vase500/nightlylauncher/releases'))
+
+ipcMain.handle('native:detect', () => native.detect())
 
 ipcMain.handle('versions:list', (e, filters) => mojang.listVersions(filters))
 ipcMain.handle('loaders:list', (e, loader, mc) => loaders.listLoaderVersions(loader, mc))
